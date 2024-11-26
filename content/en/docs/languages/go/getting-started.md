@@ -71,18 +71,28 @@ package main
 
 import (
 	"io"
-	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"strconv"
 )
+
+var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 func rolldice(w http.ResponseWriter, r *http.Request) {
 	roll := 1 + rand.Intn(6)
 
+	var msg string
+	if player := r.PathValue("player"); player != "" {
+		msg = player + " is rolling the dice"
+	} else {
+		msg = "Anonymous player is rolling the dice"
+	}
+	logger.InfoContext(ctx, msg, "result", roll)
+
 	resp := strconv.Itoa(roll) + "\n"
 	if _, err := io.WriteString(w, resp); err != nil {
-		log.Printf("Write failed: %v\n", err)
+		logger.ErrorContext(ctx, "Write failed", "error", err)
 	}
 }
 ```
@@ -377,9 +387,7 @@ Modify `rolldice.go` to include custom instrumentation using OpenTelemetry API:
 package main
 
 import (
-	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -390,7 +398,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-const name = "go.opentelemetry.io/otel/example/dice"
+const name = "go.opentelemetry.io/contrib/example/dice"
 
 var (
 	tracer = otel.Tracer(name)
@@ -417,7 +425,7 @@ func rolldice(w http.ResponseWriter, r *http.Request) {
 
 	var msg string
 	if player := r.PathValue("player"); player != "" {
-		msg = fmt.Sprintf("%s is rolling the dice", player)
+		msg = player + " is rolling the dice"
 	} else {
 		msg = "Anonymous player is rolling the dice"
 	}
@@ -429,7 +437,7 @@ func rolldice(w http.ResponseWriter, r *http.Request) {
 
 	resp := strconv.Itoa(roll) + "\n"
 	if _, err := io.WriteString(w, resp); err != nil {
-		log.Printf("Write failed: %v\n", err)
+		logger.ErrorContext(ctx, "Write failed", "error", err)
 	}
 }
 ```
